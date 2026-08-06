@@ -1,3 +1,6 @@
 spring:
   application:
     name: cloudforge-api
+
+  profiles:
+    active: dev
