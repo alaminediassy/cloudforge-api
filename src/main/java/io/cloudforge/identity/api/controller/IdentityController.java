@@ -1,0 +1,42 @@
+package io.cloudforge.identity.api.controller;
+
+import io.cloudforge.identity.api.request.RegisterUserRequest;
+import io.cloudforge.identity.api.response.RegisterUserResponse;
+import io.cloudforge.identity.application.command.RegisterUserCommand;
+import io.cloudforge.identity.application.usecase.RegisterUserUseCase;
+import io.cloudforge.identity.domain.User;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/identity")
+@RequiredArgsConstructor
+public class IdentityController {
+
+    private final RegisterUserUseCase registerUserUseCase;
+
+    @PostMapping("/register")
+    @ResponseStatus(HttpStatus.CREATED)
+    public RegisterUserResponse register(
+            @Valid @RequestBody RegisterUserRequest request
+            ) {
+        RegisterUserCommand command = new RegisterUserCommand(
+                request.email(),
+                request.firstName(),
+                request.lastName(),
+                request.password()
+        );
+
+        User user = registerUserUseCase.register(command);
+
+        return new RegisterUserResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getStatus()
+        );
+    }
+}

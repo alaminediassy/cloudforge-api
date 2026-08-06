@@ -12,7 +12,7 @@ CREATE TABLE users
 
     status VARCHAR(50) NOT NULL,
 
-    created_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
 
-    updated_at TIMESTAMP NOT NULL
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
