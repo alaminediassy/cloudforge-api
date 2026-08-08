@@ -1,5 +1,6 @@
 package io.cloudforge.identity.api.exception;
 
+import io.cloudforge.identity.domain.exception.InvalidCredentialsException;
 import io.cloudforge.identity.domain.exception.UserAlreadyExistsException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,22 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(response);
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCredentials(
+            InvalidCredentialsException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(new ErrorResponse(
+                        Instant.now(),
+                        HttpStatus.UNAUTHORIZED.value(),
+                        HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                        exception.getMessage(),
+                        request.getRequestURI()
+                ));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
