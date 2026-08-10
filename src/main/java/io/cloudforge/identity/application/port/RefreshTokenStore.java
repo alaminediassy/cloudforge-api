@@ -1,6 +1,7 @@
 package io.cloudforge.identity.application.port;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface RefreshTokenStore {
@@ -11,4 +12,5 @@ public interface RefreshTokenStore {
 
     void revoke(String tokenHash);
 
+    Optional<UUID> consume(String tokenHash);
 }

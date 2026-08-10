@@ -1,12 +1,6 @@
 package io.cloudforge.identity.api.exception;
 
-import io.cloudforge.identity.domain.exception.InvalidCredentialsException;
-import io.cloudforge.identity.domain.exception.InvalidOtpException;
-import io.cloudforge.identity.domain.exception.OtpCooldownException;
-import io.cloudforge.identity.domain.exception.UserAlreadyActiveException;
-import io.cloudforge.identity.domain.exception.UserAlreadyExistsException;
-import io.cloudforge.identity.domain.exception.UserNotFoundException;
-import io.cloudforge.identity.domain.exception.VerificationBlockedException;
+import io.cloudforge.identity.domain.exception.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -174,6 +168,22 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(response);
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRefreshToken(
+            InvalidRefreshTokenException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(new ErrorResponse(
+                        Instant.now(),
+                        HttpStatus.UNAUTHORIZED.value(),
+                        HttpStatus.UNAUTHORIZED.getReasonPhrase(),
+                        exception.getMessage(),
+                        request.getRequestURI()
+                ));
     }
 
 }
