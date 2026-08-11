@@ -24,6 +24,7 @@ public class IdentityController {
     private final SendActivationOtpUseCase sendActivationOtpUseCase;
     private final VerifyEmailUseCase verifyEmailUseCase;
     private final RefreshSessionUseCase refreshSessionUseCase;
+    private final LogoutUseCase logoutUseCase;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -106,6 +107,16 @@ public class IdentityController {
                         result.accessToken(),
                         result.refreshToken()
                 )
+        );
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(
+            @Valid @RequestBody LogoutRequest request
+    ) {
+        logoutUseCase.logout(
+                new LogoutCommand(request.refreshToken())
         );
     }
 }
