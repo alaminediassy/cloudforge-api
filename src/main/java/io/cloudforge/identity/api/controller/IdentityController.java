@@ -1,20 +1,12 @@
 package io.cloudforge.identity.api.controller;
 
-import io.cloudforge.identity.api.request.LoginUserRequest;
-import io.cloudforge.identity.api.request.RegisterUserRequest;
-import io.cloudforge.identity.api.request.ResendVerificationCodeRequest;
-import io.cloudforge.identity.api.request.VerifyEmailRequest;
+import io.cloudforge.identity.api.request.*;
 import io.cloudforge.identity.api.response.LoginUserResponse;
+import io.cloudforge.identity.api.response.RefreshSessionResponse;
 import io.cloudforge.identity.api.response.RegisterUserResponse;
 import io.cloudforge.identity.api.response.VerifyEmailResponse;
-import io.cloudforge.identity.application.command.LoginUserCommand;
-import io.cloudforge.identity.application.command.RegisterUserCommand;
-import io.cloudforge.identity.application.command.SendActivationOtpCommand;
-import io.cloudforge.identity.application.command.VerifyEmailCommand;
-import io.cloudforge.identity.application.usecase.LoginUserUseCase;
-import io.cloudforge.identity.application.usecase.RegisterUserUseCase;
-import io.cloudforge.identity.application.usecase.SendActivationOtpUseCase;
-import io.cloudforge.identity.application.usecase.VerifyEmailUseCase;
+import io.cloudforge.identity.application.command.*;
+import io.cloudforge.identity.application.usecase.*;
 import io.cloudforge.identity.domain.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +23,7 @@ public class IdentityController {
     private final LoginUserUseCase loginUserUseCase;
     private final SendActivationOtpUseCase sendActivationOtpUseCase;
     private final VerifyEmailUseCase verifyEmailUseCase;
+    private final RefreshSessionUseCase refreshSessionUseCase;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -83,9 +76,7 @@ public class IdentityController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginUserResponse> login(
-            @Valid @RequestBody LoginUserRequest request
-    ) {
+    public ResponseEntity<LoginUserResponse> login(@Valid @RequestBody LoginUserRequest request) {
         LoginUserUseCase.LoginResult result = loginUserUseCase.login(
                 new LoginUserCommand(
                         request.email(),
@@ -95,6 +86,23 @@ public class IdentityController {
 
         return ResponseEntity.ok(
                 new LoginUserResponse(
+                        result.accessToken(),
+                        result.refreshToken()
+                )
+        );
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<RefreshSessionResponse> refresh(
+            @Valid @RequestBody RefreshSessionRequest request
+    ) {
+        RefreshSessionUseCase.RefreshSessionResult result =
+                refreshSessionUseCase.refresh(
+                        new RefreshSessionCommand(request.refreshToken())
+                );
+
+        return ResponseEntity.ok(
+                new RefreshSessionResponse(
                         result.accessToken(),
                         result.refreshToken()
                 )

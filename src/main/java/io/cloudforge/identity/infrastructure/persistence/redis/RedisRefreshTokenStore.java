@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -30,6 +31,15 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     @Override
     public void revoke(String tokenHash) {
         redisTemplate.delete(buildKey(tokenHash));
+    }
+
+    @Override
+    public Optional<UUID> consume(String tokenHash) {
+        String userIdStr = redisTemplate.opsForValue()
+                .getAndDelete(buildKey(tokenHash));
+
+        return Optional.ofNullable(userIdStr)
+                .map(UUID::fromString);
     }
 
     private String buildKey(String tokenHash) {

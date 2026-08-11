@@ -12,4 +12,6 @@ public interface TokenProvider {
 
     Duration getRefreshTokenTtl();
 
+    boolean isValidRefreshToken(String token);
+
 }
