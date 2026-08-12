@@ -57,7 +57,7 @@ jobs:
       - name: Run Maven Tests
         env:
           JWT_SECRET: "dummy-secret-for-testing-only"
-        run: ./mvnw clean test
+        run: ./mvnw clean test -Dspring.profiles.active=test
 
   docker:
     name: Build and Push Docker Image
