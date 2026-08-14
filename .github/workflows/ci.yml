@@ -93,7 +93,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: >
-          ./mvnw sonar:sonar
+          ./mvnw org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
           -Dsonar.organization=alaminediassy
           -Dsonar.projectKey=alaminediassy_cloudforge-api
           -Dsonar.token=$SONAR_TOKEN
