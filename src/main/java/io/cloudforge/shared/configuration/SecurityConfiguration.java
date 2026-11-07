@@ -31,6 +31,8 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticateAccessTokenUseCase authenticate,
                                            SecurityErrorHandler errors) throws Exception {
+        // Authentication uses Bearer tokens, not browser cookies.
+        // CSRF protection is not needed for this stateless API.
         http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(AbstractHttpConfigurer::disable)

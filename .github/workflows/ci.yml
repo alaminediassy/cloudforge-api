@@ -48,7 +48,9 @@ jobs:
           -DskipTests=false -Dmaven.test.skip=false
           -Dmaven.test.failure.ignore=false -DfailIfNoTests=true
       - name: Check publication policy locally
-        run: python3 .github/scripts/test-publication.py
+        run: |
+          python3 .github/scripts/test-publication.py
+          python3 .github/scripts/test-oci-artifact.py
       - name: Require test and coverage reports
         run: python3 .github/scripts/verify-test-reports.py
       - name: Upload analysis inputs
