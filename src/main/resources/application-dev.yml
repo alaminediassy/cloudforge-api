@@ -1,15 +1,25 @@
 spring:
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    properties:
+      mail.debug: false
+      mail.smtp.connectiontimeout: 3000
+      mail.smtp.timeout: 3000
+      mail.smtp.writetimeout: 3000
   datasource:
-    url: jdbc:postgresql://localhost:5432/cloudforge
-    username: cloudforge
-    password: postgres
-
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:cloudforge}
+    username: ${POSTGRES_USER:cloudforge}
+    password: ${POSTGRES_PASSWORD}
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      database: 0
   jpa:
     open-in-view: false
-
     hibernate:
       ddl-auto: validate
-
   flyway:
     enabled: true
     locations: classpath:db/migration

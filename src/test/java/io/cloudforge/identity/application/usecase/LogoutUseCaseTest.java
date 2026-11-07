@@ -44,7 +44,6 @@ class LogoutUseCaseTest {
 
         logoutUseCase.logout(command);
 
-        // Then
         verify(hashProvider).hash(rawToken);
         verify(refreshTokenStore).revoke(tokenHash);
 

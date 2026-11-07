@@ -1,240 +1,85 @@
 package io.cloudforge.identity.application.usecase;
 
 import io.cloudforge.identity.application.command.SendActivationOtpCommand;
-import io.cloudforge.identity.application.port.EmailProvider;
-import io.cloudforge.identity.application.port.OtpGenerator;
-import io.cloudforge.identity.application.port.OtpStore;
-import io.cloudforge.identity.application.port.UserRepository;
+import io.cloudforge.identity.application.port.*;
 import io.cloudforge.identity.domain.User;
-import io.cloudforge.identity.domain.exception.OtpCooldownException;
-import io.cloudforge.identity.domain.exception.UserAlreadyActiveException;
-import io.cloudforge.identity.domain.exception.UserNotFoundException;
-import io.cloudforge.identity.domain.exception.VerificationBlockedException;
+import io.cloudforge.identity.domain.exception.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.Duration;
 import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import java.util.UUID;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
 class SendActivationOtpUseCaseTest {
+    @Mock UserRepository users;
+    @Mock OtpGenerator generator;
+    @Mock OtpStore store;
+    @Mock EmailProvider email;
+    @Mock HashProvider hash;
+    SendActivationOtpUseCase useCase;
+    final String address = "fixture@example.test";
+    User user;
 
-    @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private OtpGenerator otpGenerator;
-
-    @Mock
-    private OtpStore otpStore;
-
-    @Mock
-    private EmailProvider emailProvider;
-
-    @Mock
-    private User user;
-
-    private SendActivationOtpUseCase useCase;
-
-    @BeforeEach
-    void setUp() {
-        useCase = new SendActivationOtpUseCase(
-                userRepository,
-                otpGenerator,
-                otpStore,
-                emailProvider
-        );
+    @BeforeEach void setup() {
+        useCase = new SendActivationOtpUseCase(new PrepareActivationOtpUseCase(users, generator, store, hash), email);
+        user = User.create(UUID.randomUUID(), address, "First", "Last", "hash");
+        when(users.findByEmailForUpdate(address)).thenReturn(Optional.of(user));
     }
-
-    @Test
-    void shouldSendOtpSuccessfullyAndEnsureSha256Hashing() {
-
-        SendActivationOtpCommand command =
-                new SendActivationOtpCommand(
-                        "test@cloudforge.io"
-                );
-
-        String generatedOtp = "123456";
-
-        String expectedHash =
-                "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92";
-
-        when(userRepository.findByEmail(command.email()))
-                .thenReturn(Optional.of(user));
-
-        when(user.isActive())
-                .thenReturn(false);
-
-        when(otpStore.isVerificationBlocked(command.email()))
-                .thenReturn(false);
-
-        when(otpGenerator.generate())
-                .thenReturn(generatedOtp);
-
-        when(
-                otpStore.saveIfAllowed(
-                        eq(command.email()),
-                        eq(expectedHash),
-                        eq(Duration.ofMinutes(7)),
-                        eq(Duration.ofMinutes(2))
-                )
-        ).thenReturn(true);
-
-        useCase.send(command);
-
-        verify(otpStore).saveIfAllowed(
-                eq(command.email()),
-                eq(expectedHash),
-                eq(Duration.ofMinutes(7)),
-                eq(Duration.ofMinutes(2))
-        );
-
-        verify(emailProvider).sendActivationEmail(
-                command.email(),
-                generatedOtp
-        );
+    private void prepare(OtpStore.IssueResult result) {
+        when(generator.generate()).thenReturn("123456");
+        when(hash.hash("123456")).thenReturn("hashed");
+        when(store.issue(eq(address), eq("hashed"), any(), any())).thenReturn(result);
     }
-
-    @Test
-    void shouldRejectUnknownUser() {
-
-        SendActivationOtpCommand command =
-                new SendActivationOtpCommand(
-                        "unknown@cloudforge.io"
-                );
-
-        when(userRepository.findByEmail(command.email()))
-                .thenReturn(Optional.empty());
-
-        assertThrows(
-                UserNotFoundException.class,
-                () -> useCase.send(command)
-        );
-
-        verifyNoInteractions(
-                otpGenerator,
-                otpStore,
-                emailProvider
-        );
+    @Test void storesBeforeSending() {
+        prepare(OtpStore.IssueResult.STORED);
+        useCase.send(new SendActivationOtpCommand(address));
+        var order = inOrder(store, email);
+        order.verify(store).issue(eq(address), eq("hashed"), eq(java.time.Duration.ofMinutes(7)), eq(java.time.Duration.ofMinutes(2)));
+        order.verify(email).sendActivationEmail(address, "123456");
     }
-
-    @Test
-    void shouldRejectAlreadyActiveUser() {
-
-        SendActivationOtpCommand command =
-                new SendActivationOtpCommand(
-                        "active@cloudforge.io"
-                );
-
-        when(userRepository.findByEmail(command.email()))
-                .thenReturn(Optional.of(user));
-
-        when(user.isActive())
-                .thenReturn(true);
-
-        assertThrows(
-                UserAlreadyActiveException.class,
-                () -> useCase.send(command)
-        );
-
-        verifyNoInteractions(
-                otpGenerator,
-                otpStore,
-                emailProvider
-        );
+    @Test void cooldownDoesNotSend() {
+        prepare(OtpStore.IssueResult.COOLDOWN);
+        assertThrows(OtpCooldownException.class, () -> useCase.send(new SendActivationOtpCommand(address)));
+        verifyNoInteractions(email);
     }
-
-    @Test
-    void shouldRejectBlockedUser() {
-
-        SendActivationOtpCommand command =
-                new SendActivationOtpCommand(
-                        "blocked@cloudforge.io"
-                );
-
-        when(userRepository.findByEmail(command.email()))
-                .thenReturn(Optional.of(user));
-
-        when(user.isActive())
-                .thenReturn(false);
-
-        when(otpStore.isVerificationBlocked(command.email()))
-                .thenReturn(true);
-
-        assertThrows(
-                VerificationBlockedException.class,
-                () -> useCase.send(command)
-        );
-
-        verify(
-                otpStore,
-                never()
-        ).saveIfAllowed(
-                any(),
-                any(),
-                any(),
-                any()
-        );
-
-        verifyNoInteractions(
-                otpGenerator,
-                emailProvider
-        );
+    @Test void blockedDoesNotSend() {
+        prepare(OtpStore.IssueResult.BLOCKED);
+        assertThrows(VerificationBlockedException.class, () -> useCase.send(new SendActivationOtpCommand(address)));
+        verifyNoInteractions(email);
     }
-
-    @Test
-    void shouldRejectWhenCooldownActive() {
-
-        SendActivationOtpCommand command =
-                new SendActivationOtpCommand(
-                        "cooldown@cloudforge.io"
-                );
-
-        String generatedOtp = "123456";
-
-        String expectedHash =
-                "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92";
-
-        when(userRepository.findByEmail(command.email()))
-                .thenReturn(Optional.of(user));
-
-        when(user.isActive())
-                .thenReturn(false);
-
-        when(otpStore.isVerificationBlocked(command.email()))
-                .thenReturn(false);
-
-        when(otpGenerator.generate())
-                .thenReturn(generatedOtp);
-
-        when(
-                otpStore.saveIfAllowed(
-                        eq(command.email()),
-                        eq(expectedHash),
-                        eq(Duration.ofMinutes(7)),
-                        eq(Duration.ofMinutes(2))
-                )
-        ).thenReturn(false);
-
-        assertThrows(
-                OtpCooldownException.class,
-                () -> useCase.send(command)
-        );
-
-        verify(
-                emailProvider,
-                never()
-        ).sendActivationEmail(
-                any(),
-                any()
-        );
+    @Test void redisFailureDoesNotSend() {
+        when(generator.generate()).thenReturn("123456");
+        when(hash.hash("123456")).thenReturn("hashed");
+        when(store.issue(any(), any(), any(), any())).thenThrow(new org.springframework.data.redis.RedisConnectionFailureException("fixture"));
+        assertThrows(org.springframework.data.redis.RedisConnectionFailureException.class, () -> useCase.send(new SendActivationOtpCommand(address)));
+        verifyNoInteractions(email);
+    }
+    @Test void notificationFailurePropagatesWithoutDeletingStoredCode() {
+        prepare(OtpStore.IssueResult.STORED);
+        doThrow(new NotificationDeliveryException()).when(email).sendActivationEmail(any(), any());
+        assertThrows(NotificationDeliveryException.class, () -> useCase.send(new SendActivationOtpCommand(address)));
+        verify(store).issue(any(), any(), any(), any());
+        verifyNoMoreInteractions(store);
+    }
+    @Test void rejectsSuspendedBeforeExternalEffects() {
+        user.suspend();
+        assertThrows(InvalidUserStateException.class, () -> useCase.send(new SendActivationOtpCommand(address)));
+        verifyNoInteractions(store, email, generator);
+    }
+    @Test void rejectsActiveBeforeExternalEffects() {
+        user.activate();
+        assertThrows(UserAlreadyActiveException.class, () -> useCase.send(new SendActivationOtpCommand(address)));
+        verifyNoInteractions(store, email, generator);
+    }
+    @Test void rejectsUnknownUser() {
+        when(users.findByEmailForUpdate(address)).thenReturn(Optional.empty());
+        assertThrows(UserNotFoundException.class, () -> useCase.send(new SendActivationOtpCommand(address)));
+        verifyNoInteractions(store, email, generator);
     }
 }

@@ -4,6 +4,7 @@ import io.cloudforge.identity.application.port.PasswordHasher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
+import java.nio.charset.StandardCharsets;
 
 @Component
 @RequiredArgsConstructor
@@ -18,7 +19,9 @@ public class BCryptPasswordHasher implements PasswordHasher {
 
     @Override
     public boolean matches(String rawPassword, String passwordHash) {
-        return passwordEncoder.matches(rawPassword, passwordHash);
+        return rawPassword != null
+                && rawPassword.getBytes(StandardCharsets.UTF_8).length <= 72
+                && passwordEncoder.matches(rawPassword, passwordHash);
     }
 
 }

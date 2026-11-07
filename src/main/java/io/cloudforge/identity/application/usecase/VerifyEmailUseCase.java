@@ -3,6 +3,8 @@ package io.cloudforge.identity.application.usecase;
 import io.cloudforge.identity.application.command.VerifyEmailCommand;
 import io.cloudforge.identity.application.port.*;
 import io.cloudforge.identity.domain.User;
+import io.cloudforge.identity.domain.UserStatus;
+import io.cloudforge.identity.domain.exception.InvalidUserStateException;
 import io.cloudforge.identity.domain.exception.InvalidOtpException;
 import io.cloudforge.identity.domain.exception.UserAlreadyActiveException;
 import io.cloudforge.identity.domain.exception.UserNotFoundException;
@@ -35,7 +37,7 @@ public class VerifyEmailUseCase {
         String email = command.email();
         String rawOtp = command.otp();
 
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(
                         () -> new UserNotFoundException(email)
                 );
@@ -44,20 +46,21 @@ public class VerifyEmailUseCase {
             throw new UserAlreadyActiveException(email);
         }
 
-        if (otpStore.isVerificationBlocked(email)) {
-            throw new VerificationBlockedException(email);
+        if (user.getStatus() == UserStatus.SUSPENDED) {
+            throw new InvalidUserStateException();
         }
 
-        String storedOtpHash = otpStore.getOtpHash(email)
-                .orElseThrow(InvalidOtpException::new);
-
-        String inputOtpHash = hashProvider.hash(rawOtp);
-
-        if (!storedOtpHash.equals(inputOtpHash)) {
-            handleFailedAttempt(email);
+        OtpStore.VerificationResult result = otpStore.verifyAndConsume(email, hashProvider.hash(rawOtp),
+                MAX_FAILED_ATTEMPTS, ATTEMPTS_TTL, BLOCK_DURATION);
+        if (result == OtpStore.VerificationResult.BLOCKED) {
+            throw new VerificationBlockedException(email);
+        }
+        if (result != OtpStore.VerificationResult.ACCEPTED) {
             throw new InvalidOtpException();
         }
 
+        // Redis is not part of the SQL transaction.
+        // A SQL rollback does not restore the consumed code.
         user.activate();
         userRepository.save(user);
 
@@ -76,31 +79,10 @@ public class VerifyEmailUseCase {
                 tokenProvider.getRefreshTokenTtl()
         );
 
-        otpStore.delete(email);
-
         return new VerifyEmailResult(
                 accessToken,
                 refreshToken
         );
-    }
-
-    private void handleFailedAttempt(String email) {
-
-        long attempts =
-                otpStore.incrementFailedAttempts(
-                        email,
-                        ATTEMPTS_TTL
-                );
-
-        if (attempts >= MAX_FAILED_ATTEMPTS) {
-
-            otpStore.blockVerification(
-                    email,
-                    BLOCK_DURATION
-            );
-
-            throw new VerificationBlockedException(email);
-        }
     }
 
     public record VerifyEmailResult(

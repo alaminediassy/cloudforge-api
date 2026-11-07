@@ -1,24 +1,23 @@
 services:
 
-  # postgreSQL
   postgres:
     image: postgres:17.1-alpine
     container_name: cloudforge-postgres
     restart: unless-stopped
 
     environment:
-      POSTGRES_USER: cloudforge
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cloudforge
+      POSTGRES_USER: ${POSTGRES_USER:-cloudforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-cloudforge}
 
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cloudforge} -d ${POSTGRES_DB:-cloudforge}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -27,10 +26,30 @@ services:
     networks:
       - cloudforge-network
 
-    # Redis
+  postgres-test:
+    image: postgres:17.1-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: ${TEST_POSTGRES_USER:-cloudforge_test}
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD:-local-test-only}
+      POSTGRES_DB: ${TEST_POSTGRES_DB:-cloudforge_test}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cloudforge-network
+
   redis:
     image: redis:7-alpine
     container_name: cloudforge-redis
+    ports:
+      - "127.0.0.1:6380:6379"
     restart: unless-stopped
 
     healthcheck:
@@ -43,7 +62,38 @@ services:
     networks:
       - cloudforge-network
 
-  # Cloudforge API
+  # Use a separate Redis instance so tests do not change development keys.
+  redis-test:
+    image: redis:7-alpine
+    profiles: ["test"]
+    ports:
+      - "127.0.0.1:6390:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - cloudforge-network
+
+  # Local email capture only; no relay or forwarding configuration.
+  mailpit:
+    image: axllent/mailpit:v1.27.10
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    networks:
+      - cloudforge-network
+
+  mailpit-test:
+    image: axllent/mailpit:v1.27.10
+    profiles: ["test"]
+    ports:
+      - "127.0.0.1:1026:1025"
+      - "127.0.0.1:8026:8025"
+    networks:
+      - cloudforge-network
+
   api:
     build:
       context: .
@@ -53,19 +103,24 @@ services:
     restart: unless-stopped
 
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
 
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cloudforge
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-cloudforge}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-cloudforge}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
 
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
 
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
 
     depends_on:
+      mailpit:
+        condition: service_started
       postgres:
         condition: service_healthy
       redis:
@@ -81,11 +136,10 @@ services:
     networks:
       - cloudforge-network
 
-# Volumes
 volumes:
   postgres_data:
+  postgres_test_data:
 
-# Networks
 networks:
   cloudforge-network:
     driver: bridge

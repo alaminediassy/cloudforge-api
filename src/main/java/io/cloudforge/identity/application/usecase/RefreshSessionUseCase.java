@@ -34,6 +34,7 @@ public class RefreshSessionUseCase {
         UUID userId = refreshTokenStore.consume(tokenHash)
                 .orElseThrow(InvalidRefreshTokenException::new);
 
+        // The old token stays consumed if a later step fails. The user must log in again.
         User user = userRepository.findById(userId)
                 .orElseThrow(InvalidRefreshTokenException::new);
 

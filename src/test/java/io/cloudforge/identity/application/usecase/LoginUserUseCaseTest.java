@@ -6,6 +6,7 @@ import io.cloudforge.identity.application.port.RefreshTokenStore;
 import io.cloudforge.identity.application.port.TokenProvider;
 import io.cloudforge.identity.application.port.UserRepository;
 import io.cloudforge.identity.domain.User;
+import io.cloudforge.identity.application.port.HashProvider;
 import io.cloudforge.identity.domain.exception.InvalidCredentialsException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,9 @@ class LoginUserUseCaseTest {
     private RefreshTokenStore refreshTokenStore;
 
     @Mock
+    private HashProvider hashProvider;
+
+    @Mock
     private User user;
 
     private LoginUserUseCase loginUserUseCase;
@@ -44,7 +48,8 @@ class LoginUserUseCaseTest {
                 userRepository,
                 passwordHasher,
                 tokenProvider,
-                refreshTokenStore
+                refreshTokenStore,
+                hashProvider
         );
     }
 
@@ -76,9 +81,13 @@ class LoginUserUseCaseTest {
         when(tokenProvider.generateRefreshToken(user))
                 .thenReturn("refresh-token");
 
+        when(hashProvider.hash("refresh-token")).thenReturn("hash-returned-by-port");
+
         LoginUserUseCase.LoginResult result =
                 loginUserUseCase.login(command);
 
+        verify(hashProvider).hash("refresh-token");
+        verify(refreshTokenStore).save(eq("hash-returned-by-port"), any(), any());
         assertNotNull(result);
         assertEquals("access-token", result.accessToken());
         assertEquals("refresh-token", result.refreshToken());

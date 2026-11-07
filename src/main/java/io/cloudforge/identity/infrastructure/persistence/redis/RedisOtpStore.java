@@ -2,88 +2,59 @@ package io.cloudforge.identity.infrastructure.persistence.redis;
 
 import io.cloudforge.identity.application.port.OtpStore;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Optional;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class RedisOtpStore implements OtpStore {
-
-    private static final String HASH_KEY_PREFIX = "cloudforge:otp:hash:";
-    private static final String COOLDOWN_KEY_PREFIX = "cloudforge:otp:cooldown:";
-    private static final String ATTEMPTS_KEY_PREFIX = "cloudforge:otp:attempts:";
-    private static final String BLOCKED_KEY_PREFIX = "cloudforge:otp:blocked:";
-
+    private static final DefaultRedisScript<Long> ISSUE = script("redis/issue-otp.lua");
+    private static final DefaultRedisScript<Long> VERIFY = script("redis/verify-otp.lua");
     private final StringRedisTemplate redisTemplate;
 
+    @Override
+    public IssueResult issue(String email, String otpHash, Duration otpTtl, Duration cooldownTtl) {
+        Long result = redisTemplate.execute(ISSUE, keys(email), otpHash, millis(otpTtl), millis(cooldownTtl));
+        if (Long.valueOf(1).equals(result)) return IssueResult.STORED;
+        if (Long.valueOf(2).equals(result)) return IssueResult.BLOCKED;
+        if (Long.valueOf(0).equals(result)) return IssueResult.COOLDOWN;
+        throw new IllegalStateException("Unexpected OTP storage result");
+    }
 
     @Override
-    public boolean saveIfAllowed(String email, String otpHash, Duration otpTtl, Duration cooldownTtl) {
+    public VerificationResult verifyAndConsume(String email, String otpHash, int maxAttempts,
+                                               Duration attemptsTtl, Duration blockTtl) {
+        if (maxAttempts < 1) throw new IllegalArgumentException("Attempts must be positive");
+        Long result = redisTemplate.execute(VERIFY, keys(email), otpHash, Integer.toString(maxAttempts),
+                millis(attemptsTtl), millis(blockTtl));
+        if (Long.valueOf(1).equals(result)) return VerificationResult.ACCEPTED;
+        if (Long.valueOf(2).equals(result)) return VerificationResult.BLOCKED;
+        if (Long.valueOf(0).equals(result)) return VerificationResult.INVALID;
+        throw new IllegalStateException("Unexpected OTP verification result");
+    }
 
-        String blockedKey = BLOCKED_KEY_PREFIX + email;
-        if (redisTemplate.hasKey(blockedKey)) {
-            return false;
+    // These multi-key scripts require standalone Redis, not Redis Cluster.
+    private static List<String> keys(String email) {
+        return List.of("cloudforge:otp:hash:" + email, "cloudforge:otp:cooldown:" + email,
+                "cloudforge:otp:attempts:" + email, "cloudforge:otp:blocked:" + email);
+    }
+
+    private static String millis(Duration duration) {
+        if (duration == null || duration.toMillis() < 1) {
+            throw new IllegalArgumentException("OTP durations must be positive");
         }
-
-        String cooldownKey = COOLDOWN_KEY_PREFIX + email;
-        Boolean allowed = redisTemplate.opsForValue().setIfAbsent(cooldownKey, "1", cooldownTtl);
-
-        if (Boolean.TRUE.equals(allowed)) {
-            String hashKey = HASH_KEY_PREFIX + email;
-            String attemptsKey = ATTEMPTS_KEY_PREFIX + email;
-
-            redisTemplate.opsForValue().set(hashKey, otpHash, otpTtl);
-
-            redisTemplate.delete(attemptsKey);
-
-            return true;
-        }
-
-        return false;
+        return Long.toString(duration.toMillis());
     }
 
-    @Override
-    public Optional<String> getOtpHash(String email) {
-        String hashKey = HASH_KEY_PREFIX + email;
-        return Optional.ofNullable(redisTemplate.opsForValue().get(hashKey));
-    }
-
-    @Override
-    public long incrementFailedAttempts(String email, Duration ttl) {
-        String attemptsKey = ATTEMPTS_KEY_PREFIX + email;
-
-        Long attempts = redisTemplate.opsForValue().increment(attemptsKey);
-
-        if (attempts != null && attempts == 1L) {
-            redisTemplate.expire(attemptsKey, ttl);
-        }
-
-        return attempts != null ? attempts : 0L;
-    }
-
-    @Override
-    public void blockVerification(String email, Duration ttl) {
-        String blockedKey = BLOCKED_KEY_PREFIX + email;
-        redisTemplate.opsForValue().set(blockedKey, "1", ttl);
-    }
-
-    @Override
-    public boolean isVerificationBlocked(String email) {
-        String blockedKey = BLOCKED_KEY_PREFIX + email;
-        return redisTemplate.hasKey(blockedKey);
-    }
-
-    @Override
-    public void delete(String email) {
-        redisTemplate.delete(Arrays.asList(
-                HASH_KEY_PREFIX + email,
-                COOLDOWN_KEY_PREFIX + email,
-                ATTEMPTS_KEY_PREFIX + email,
-                BLOCKED_KEY_PREFIX + email
-        ));
+    private static DefaultRedisScript<Long> script(String path) {
+        var script = new DefaultRedisScript<Long>();
+        script.setLocation(new ClassPathResource(path));
+        script.setResultType(Long.class);
+        return script;
     }
 }
