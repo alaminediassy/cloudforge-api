@@ -5,17 +5,14 @@ import io.cloudforge.identity.application.port.PasswordHasher;
 import io.cloudforge.identity.application.port.RefreshTokenStore;
 import io.cloudforge.identity.application.port.TokenProvider;
 import io.cloudforge.identity.application.port.UserRepository;
+import io.cloudforge.identity.application.port.HashProvider;
 import io.cloudforge.identity.domain.User;
 import io.cloudforge.identity.domain.exception.InvalidCredentialsException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.HexFormat;
 
 @Service
 @Transactional
@@ -26,6 +23,7 @@ public class LoginUserUseCase {
     private final PasswordHasher passwordHasher;
     private final TokenProvider tokenProvider;
     private final RefreshTokenStore refreshTokenStore;
+    private final HashProvider hashProvider;
 
     public LoginResult login(LoginUserCommand command) {
 
@@ -48,7 +46,7 @@ public class LoginUserUseCase {
 
         Duration ttl = tokenProvider.getRefreshTokenTtl();
 
-        String tokenHash = hashToken(refreshToken);
+        String tokenHash = hashProvider.hash(refreshToken);
 
         refreshTokenStore.save(
                 tokenHash,
@@ -60,23 +58,6 @@ public class LoginUserUseCase {
                 accessToken,
                 refreshToken
         );
-    }
-
-    private String hashToken(String token) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(
-                    token.getBytes(StandardCharsets.UTF_8)
-            );
-
-            return HexFormat.of().formatHex(hash);
-
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(
-                    "SHA-256 algorithm not available",
-                    e
-            );
-        }
     }
 
     public record LoginResult(

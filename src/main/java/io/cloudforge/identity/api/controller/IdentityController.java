@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class IdentityController {
 
-    private final RegisterUserUseCase registerUserUseCase;
+    private final RegisterAndSendActivationUseCase registerUserUseCase;
     private final LoginUserUseCase loginUserUseCase;
     private final SendActivationOtpUseCase sendActivationOtpUseCase;
     private final VerifyEmailUseCase verifyEmailUseCase;
@@ -37,7 +37,6 @@ public class IdentityController {
         );
 
         User user = registerUserUseCase.register(command);
-        sendActivationOtpUseCase.send(new SendActivationOtpCommand(user.getEmail()));
 
         return new RegisterUserResponse(
                 user.getId(),
