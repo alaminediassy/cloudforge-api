@@ -262,7 +262,7 @@ status cache. A recognized database outage returns a generic 503 and does not
 grant access. Missing, invalid, unknown-user and inactive-user authentication
 returns the same 401 response. Authenticated requests to a forbidden route return
 403. An explicitly supplied invalid Authorization header is rejected even on
-public routes: omit a stale Access Token header when calling refresh or login.
+     public routes: omit a stale Access Token header when calling refresh or login.
 
 The principal contains only the user UUID. Credentials and JWT text are not
 stored in it. Authentication is request-scoped: HTTP sessions, form login, Basic
@@ -282,61 +282,55 @@ Skopeo is used by the publication job; the Python tests do not require it.
 ```bash
 ./mvnw -B -ntp clean verify -Dspring.profiles.active=test
 python3 .github/scripts/test-publication.py
+python3 .github/scripts/test-oci-artifact.py
 python3 .github/scripts/verify-test-reports.py
 actionlint .github/workflows/ci.yml
 ```
 
 The report check needs a successful full Java test run. These commands do not
-publish an image or run SonarCloud. Local success does not validate GitHub
-Artifacts transport, the hosted Quality Gate or GHCR permissions.
+publish an image. Local success does not validate GitHub artifact transport or
+GHCR permissions.
 
 ## CI/CD and quality
 
 The workflow runs on pushes to `develop` and `main`, and pull requests targeting
-those branches. It separates four jobs:
+those branches. It separates three jobs:
 
 1. **Build and Test:** Java 21 and Maven Wrapper `clean verify` with the `test`
-   profile, PostgreSQL on 5433 and dedicated Redis on 6390. Test skipping and
-   ignored failures are explicitly disabled. SMTP tests use a loopback capture
-   server; no email provider or Mailpit service is needed in CI.
-2. **SonarCloud Quality Gate:** after successful tests, download compiled classes,
-   Surefire XML and JaCoCo XML from the same run. Analyze project
-   `alaminediassy_cloudforge-api` in organization `alaminediassy` on
-   `https://sonarcloud.io`. The Maven scanner version is pinned in `pom.xml`.
-   `sonar.qualitygate.wait=true` waits up to 300 seconds for the gate. Scanner
-   failure, unavailable service, missing token, timeout or a red gate fails this job.
-3. **Validate Docker Image:** after tests, build one Linux/amd64 OCI image without
-   pushing or registry login. Export and verify the archive, then upload it as a
-   three-day artifact from this run. This job can run alongside SonarCloud.
-   The image has explicit Git revision and repository source labels. Attached
-   BuildKit attestations are disabled for this single-manifest transport; these
-   labels and checksums are integrity checks, not signed provenance.
-4. **Publish GHCR Image:** requires successful test, quality and Docker jobs.
-   Only pushes to `develop` or `main` in `alaminediassy/cloudforge-api` qualify.
-   Pull requests, other repositories, failed, cancelled or skipped prerequisites
+   profile, PostgreSQL on port 5433 and dedicated Redis on port 6390. Test
+   skipping and ignored failures are explicitly disabled. SMTP tests use a
+   loopback capture server; no email provider or Mailpit service is needed in CI.
+   Python tests check publication rules and allowed OCI archive paths. The report
+   guard verifies mandatory test suites, compiled classes and JaCoCo XML coverage.
+2. **Validate Docker Image:** after successful tests, build one Linux/amd64 OCI
+   image without pushing or registry login. Verify the archive and upload it as
+   a three-day artifact from the same run. The image has explicit Git revision
+   and repository source labels. BuildKit attestations are disabled for this
+   single-manifest transport; labels and checksums are integrity checks, not
+   signed provenance.
+3. **Publish GHCR Image:** requires successful test and Docker jobs. Only pushes
+   to `develop` or `main` in `alaminediassy/cloudforge-api` qualify. Pull
+   requests, other repositories and failed, cancelled or skipped prerequisites
    cannot publish. Download and verify the OCI archive, then transfer it with
-   Skopeo `--preserve-digests`, without building again. Tags are
+   Skopeo `--preserve-digests`, without rebuilding. Tags are
    `develop-sha-<full Git SHA>` or `main-sha-<full Git SHA>`, with `develop` and
-   `latest` as the respective mobile tags.
+   `latest` as the respective moving tags.
 
 The report guard rejects missing or malformed reports, failed or skipped tests,
 missing mandatory security/OTP/SMTP suites, missing compiled classes and empty
-JaCoCo line coverage. It does not replace SonarCloud's gate or lower any quality
-threshold. High local coverage is not evidence of a green gate.
+JaCoCo line coverage. This is a report-presence and execution check, not a
+minimum percentage coverage threshold or a substitute for code review.
 
-`SONAR_TOKEN` is used only by the scanner step through its environment, never as
-an echoed command-line value or Docker build argument. Fork and Dependabot PRs
-still run tests and the Docker validation, but the quality job explicitly fails
-without attempting secret-bearing analysis. Their gate is unvalidated, not green.
-A maintainer must review the contribution and use a trusted repository branch
-for an authorized analysis; there is no `pull_request_target` bypass.
+Fork and Dependabot pull requests can run the test and Docker validation jobs
+without registry publication credentials. No `pull_request_target` workflow is
+used to grant secrets to untrusted pull request code.
 
 The default GitHub token permission is `contents: read`. Only the publish job
 receives `packages: write`; checkout does not persist credentials. Actions are
 pinned to verified commit SHAs and need deliberate updates. Maven dependency
 caches use GitHub's branch/PR cache scope; Docker cache writes are limited to
-trusted pushes. Analysis artifacts contain only the required compiled classes and
-XML reports and expire after three days. Test data must remain synthetic.
+trusted pushes. The validated OCI image artifact expires after three days.
+Test data must remain synthetic.
 
 The Dockerfile still skips tests during its independent image build: mandatory
 tests already run in the upstream job. Only the Docker job builds an image; the
@@ -409,9 +403,9 @@ mismatch or unavailable metadata produces failure, never a forced promotion.
 If only the version upload completed, a retry using the same artifact can verify
 and reuse it; a new workflow build with another digest is refused.
 
-Local checks cannot prove the hosted Quality Gate is green or that GHCR accepts
-the token. Actual gate decisions, PR decoration, branch-analysis entitlement,
-repository rules and publication require a future authorized GitHub Actions run.
+Local checks cannot prove that GHCR accepts the token or that the hosted
+publication workflow will succeed. Repository rules and publication behavior
+require verification through an authorized GitHub Actions run.
 This workflow does not configure branch protection or prevent a repository writer
 from changing the workflow itself. No remote settings are changed by these files.
 

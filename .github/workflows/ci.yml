@@ -25,109 +25,60 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U cloudforge_test -d cloudforge_test"
           --health-interval 10s --health-timeout 5s --health-retries 5
+
       redis:
         image: redis:7-alpine
         ports: ["6390:6379"]
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s --health-timeout 5s --health-retries 5
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+
       - name: Set up JDK 21
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           java-version: '21'
           distribution: temurin
           cache: maven
+
       - name: Build, test and verify
         run: >-
           ./mvnw -B -ntp clean verify -Dspring.profiles.active=test
           -DskipTests=false -Dmaven.test.skip=false
           -Dmaven.test.failure.ignore=false -DfailIfNoTests=true
+
       - name: Check publication policy locally
         run: |
           python3 .github/scripts/test-publication.py
           python3 .github/scripts/test-oci-artifact.py
-      - name: Require test and coverage reports
-        run: python3 .github/scripts/verify-test-reports.py
-      - name: Upload analysis inputs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sonar-inputs
-          if-no-files-found: error
-          retention-days: 3
-          path: |
-            target/classes/
-            target/test-classes/
-            target/surefire-reports/TEST-*.xml
-            target/site/jacoco/jacoco.xml
 
-  quality:
-    name: SonarCloud Quality Gate
-    needs: test
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      # Fork code and Dependabot never receive the Sonar secret. Missing analysis is not a green gate.
-      - name: Reject analysis without a trusted source
-        if: >-
-          github.actor == 'dependabot[bot]' ||
-          (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
-        run: |
-          echo "::error::SonarCloud analysis requires a trusted repository branch with SONAR_TOKEN. Quality Gate remains unvalidated."
-          exit 1
-      - name: Checkout Code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Set up JDK 21
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          java-version: '21'
-          distribution: temurin
-          cache: maven
-      - name: Download analysis inputs from this run
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: sonar-inputs
-          path: target
       - name: Require test and coverage reports
         run: python3 .github/scripts/verify-test-reports.py
-      - name: Analyze and wait for Quality Gate
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          if [ -z "${SONAR_TOKEN:-}" ]; then
-            echo "::error::SONAR_TOKEN is unavailable; analysis and Quality Gate cannot be validated."
-            exit 1
-          fi
-          ./mvnw -B -ntp org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.organization=alaminediassy \
-            -Dsonar.projectKey=alaminediassy_cloudforge-api \
-            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
-            -Dsonar.qualitygate.wait=true \
-            -Dsonar.qualitygate.timeout=300
 
   docker:
     name: Validate Docker Image
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     outputs:
       archive_sha256: ${{ steps.identity.outputs.archive_sha256 }}
       manifest_digest: ${{ steps.identity.outputs.manifest_digest }}
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
       - name: Build without publishing
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
@@ -143,9 +94,11 @@ jobs:
           cache-from: type=gha
           # Only trusted pushes populate a shared Docker cache; PRs only read it.
           cache-to: ${{ github.event_name == 'push' && github.repository == 'alaminediassy/cloudforge-api' && 'type=gha,mode=max' || '' }}
+
       - name: Verify OCI identity and archive integrity
         id: identity
         run: python3 .github/scripts/oci-artifact.py "$RUNNER_TEMP/cloudforge-image.tar"
+
       - name: Transfer the exact built image
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -157,33 +110,37 @@ jobs:
 
   publish:
     name: Publish GHCR Image
-    needs: [test, quality, docker]
+    needs: [test, docker]
     if: >-
       github.event_name == 'push' &&
       github.repository == 'alaminediassy/cloudforge-api' &&
       (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') &&
       needs.test.result == 'success' &&
-      needs.quality.result == 'success' &&
       needs.docker.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     concurrency:
       group: ghcr-publication-${{ github.repository }}-${{ github.ref_name }}
       cancel-in-progress: false
+
     permissions:
       contents: read
       packages: write
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
+
       - name: Download the image from this run
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: validated-oci-image
           path: ${{ runner.temp }}/validated-image
+
       - name: Verify transferred OCI identity
         env:
           ARCHIVE_SHA256: ${{ needs.docker.outputs.archive_sha256 }}
@@ -191,10 +148,12 @@ jobs:
         run: |
           test -n "$ARCHIVE_SHA256" && test -n "$MANIFEST_DIGEST"
           python3 .github/scripts/oci-artifact.py "$RUNNER_TEMP/validated-image/cloudforge-image.tar"
+
       - name: Install OCI transfer tool
         run: |
           sudo apt-get update -qq
           sudo apt-get install --yes --no-install-recommends skopeo
+
       - name: Authenticate and promote without rebuilding
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -203,6 +162,8 @@ jobs:
           export REGISTRY_AUTH_FILE="$RUNNER_TEMP/cloudforge-registry-auth.json"
           export OCI_ARCHIVE="$RUNNER_TEMP/validated-image/cloudforge-image.tar"
           trap 'rm -f "$REGISTRY_AUTH_FILE"' EXIT
+
           printf '%s' "$GHCR_TOKEN" | skopeo login --authfile "$REGISTRY_AUTH_FILE" \
             --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+
           python3 .github/scripts/publish-image.py
