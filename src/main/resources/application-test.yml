@@ -1,0 +1,37 @@
+spring:
+  mail:
+    host: ${TEST_SMTP_HOST:localhost}
+    port: ${TEST_SMTP_PORT:1026}
+    properties:
+      mail.debug: false
+      mail.smtp.connectiontimeout: 3000
+      mail.smtp.timeout: 3000
+      mail.smtp.writetimeout: 3000
+  datasource:
+    url: jdbc:postgresql://localhost:5433/${TEST_POSTGRES_DB:cloudforge_test}
+    username: ${TEST_POSTGRES_USER:cloudforge_test}
+    password: ${TEST_POSTGRES_PASSWORD:local-test-only}
+  data:
+    redis:
+      host: localhost
+      port: 6390
+      database: 1
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+cloudforge:
+  security:
+    jwt:
+      # Public test key, independent of JWT_SECRET. Never use in production.
+      secret: cloudforge-test-only-signing-key-not-for-production-2026
+
+# SMTP transport is tested against a loopback capture server, independent of Compose.
+# Mailpit is available separately for manual local integration checks.
+management:
+  health:
+    mail:
+      enabled: false
