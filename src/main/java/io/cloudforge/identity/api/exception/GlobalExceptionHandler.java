@@ -38,6 +38,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         } else if (ex instanceof UserAlreadyActiveException || ex instanceof InvalidUserStateException) {
             status = HttpStatus.CONFLICT;
             message = "Account cannot be activated.";
+        } else if (ex instanceof AccountAccessDeniedException) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+            return response(HttpStatus.UNAUTHORIZED,
+                    "Authentication is required or invalid.", headers, request);
         } else if (ex instanceof InvalidCredentialsException) {
             status = HttpStatus.UNAUTHORIZED;
             message = "Invalid email or password";

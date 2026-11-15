@@ -269,8 +269,20 @@ stored in it. Authentication is request-scoped: HTTP sessions, form login, Basic
 authentication and request caching are disabled. Query parameters and cookies
 are not token transports. CSRF protection is disabled for this explicit Bearer
 header API; revisit this choice if cookie authentication is introduced.
-Logout does not revoke an already issued Access Token. No new private business
-endpoint has been added; authentication is exercised through test-only routes.
+Logout does not revoke an already issued Access Token.
+
+### View your profile
+
+GET /api/v1/users/me requires a valid Access Token and an active account.
+It returns HTTP 200 with id, email, firstName and lastName.
+The user ID comes from the authenticated principal, not from request parameters.
+
+Missing or invalid authentication returns HTTP 401 with
+WWW-Authenticate: Bearer. The profile use case also checks that the account
+still exists and is active when it loads the profile.
+
+This endpoint performs two account reads: one during authentication and one
+during profile loading. It does not lock the account against later changes.
 
 ### Local CI checks
 
