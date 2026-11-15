@@ -1,5 +1,6 @@
 package io.cloudforge.identity.domain;
 
+import io.cloudforge.identity.domain.exception.InvalidProfileException;
 import lombok.Getter;
 import io.cloudforge.identity.domain.exception.InvalidUserStateException;
 import io.cloudforge.identity.domain.exception.UserAlreadyActiveException;
@@ -12,8 +13,8 @@ public class User {
 
     private final UUID id;
     private final String email;
-    private final String firstName;
-    private final String lastName;
+    private String firstName;
+    private String lastName;
     private String passwordHash;
     private UserStatus status;
 
@@ -85,5 +86,21 @@ public class User {
         return UserStatus.ACTIVE.equals(status);
     }
 
+    /**
+     * Updates both names after validating both values.
+     * If either value is invalid, neither name changes.
+     */
+    public void updateNames(String firstName, String lastName) {
+        validateName(firstName);
+        validateName(lastName);
 
+        this.firstName = firstName;
+        this.lastName = lastName;
+    }
+
+    private static void validateName(String name) {
+        if (name == null || name.isBlank() || name.length() > 100) {
+            throw new InvalidProfileException();
+        }
+    }
 }

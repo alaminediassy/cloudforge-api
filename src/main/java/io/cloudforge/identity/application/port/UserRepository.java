@@ -18,4 +18,21 @@ public interface UserRepository {
     void save(User user);
 
     Optional<User> findById(UUID id);
+
+    /**
+     * Locks the account until the caller's transaction ends.
+     *
+     * <p>The caller must keep the read and update in the same transaction.
+     */
+    Optional<User> findByIdForUpdate(UUID id);
+
+    /**
+     * Updates only the names and modification time.
+     *
+     * <p>The caller must validate the names and lock the account with
+     * findByIdForUpdate in the same transaction.
+     *
+     * @return the number of updated accounts: zero or one
+     */
+    int updateNames(UUID id, String firstName, String lastName);
 }

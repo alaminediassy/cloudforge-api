@@ -61,6 +61,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         } else if (ex instanceof OtpCooldownException) {
             status = HttpStatus.TOO_MANY_REQUESTS;
             message = "Please wait before requesting another verification code.";
+        } else if (ex instanceof EmptyProfileUpdateException) {
+            status = HttpStatus.BAD_REQUEST;
+            message = "Provide at least one name to update.";
+        } else if (ex instanceof InvalidProfileException) {
+            status = HttpStatus.BAD_REQUEST;
+            message = "Names must not be blank or exceed 100 characters.";
         } else {
             return handleUnexpectedException(ex, request);
         }

@@ -14,6 +14,8 @@ import io.cloudforge.identity.domain.exception.UserAlreadyExistsException;
 import java.util.Optional;
 import java.util.UUID;
 
+import java.time.Instant;
+
 @Slf4j
 @Repository
 @RequiredArgsConstructor
@@ -58,4 +60,19 @@ public class UserRepositoryAdapter implements UserRepository {
                 .map(UserMapper::toDomain);
     }
 
+    @Override
+    public Optional<User> findByIdForUpdate(UUID id) {
+        return jpaUserRepository.findByIdForUpdate(id)
+                .map(UserMapper::toDomain);
+    }
+
+    @Override
+    public int updateNames(UUID id, String firstName, String lastName) {
+        return jpaUserRepository.updateNames(
+                id,
+                firstName,
+                lastName,
+                Instant.now()
+        );
+    }
 }

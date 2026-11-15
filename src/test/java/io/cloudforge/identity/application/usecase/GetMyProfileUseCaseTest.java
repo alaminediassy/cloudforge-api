@@ -39,7 +39,7 @@ class GetMyProfileUseCaseTest {
         UUID userId = UUID.randomUUID();
         User user = User.restore(
                 userId,
-                "adama@cloudforge.com",
+                "adama.ndiaye@example.test",
                 "Adama",
                 "Ndiaye",
                 "unused-password-hash",
@@ -54,7 +54,7 @@ class GetMyProfileUseCaseTest {
         assertEquals(
                 new GetMyProfileUseCase.ProfileResult(
                         userId,
-                        "adama@cloudforge.com",
+                        "adama.ndiaye@example.test",
                         "Adama",
                         "Ndiaye"
                 ),
@@ -90,7 +90,7 @@ class GetMyProfileUseCaseTest {
         UUID userId = UUID.randomUUID();
         User user = User.restore(
                 userId,
-                "adama@cloudforge.com",
+                "adama.ndiaye@example.test",
                 "Adama",
                 "Ndiaye",
                 "unused-password-hash",

@@ -23,12 +23,12 @@ class SendActivationOtpUseCaseTest {
     @Mock EmailProvider email;
     @Mock HashProvider hash;
     SendActivationOtpUseCase useCase;
-    final String address = "fixture@example.test";
+    final String address = "adama.ndiaye@example.test";
     User user;
 
     @BeforeEach void setup() {
         useCase = new SendActivationOtpUseCase(new PrepareActivationOtpUseCase(users, generator, store, hash), email);
-        user = User.create(UUID.randomUUID(), address, "First", "Last", "hash");
+        user = User.create(UUID.randomUUID(), address, "Adama", "Ndiaye", "hash");
         when(users.findByEmailForUpdate(address)).thenReturn(Optional.of(user));
     }
     private void prepare(OtpStore.IssueResult result) {

@@ -46,7 +46,7 @@ class IdentityHttpTest {
     @MockitoBean LogoutUseCase logout;
 
     private String registration(String email, String firstName, String password) throws Exception {
-        return json.writeValueAsString(Map.of("email", email, "firstName", firstName, "lastName", "Last", "password", password));
+        return json.writeValueAsString(Map.of("email", email, "firstName", firstName, "lastName", "Ndiaye", "password", password));
     }
 
     @ParameterizedTest
@@ -54,11 +54,11 @@ class IdentityHttpTest {
     void rejectsPasswordsOver72BytesBeforeUseCases(String kind) throws Exception {
         String password = kind.equals("ascii") ? "a".repeat(73) : "é".repeat(36) + "x";
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content(registration("user@example.org", "First", password)))
+                .content(registration("adama.ndiaye@example.test", "Adama", password)))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message", containsString("72 UTF-8 bytes")))
                 .andExpect(content().string(not(containsString(password))));
         mvc.perform(post("/api/v1/identity/login").contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(Map.of("email", "user@example.org", "password", password))))
+                .content(json.writeValueAsString(Map.of("email", "adama.ndiaye@example.test", "password", password))))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(register, login, send);
     }
@@ -67,29 +67,29 @@ class IdentityHttpTest {
     @ValueSource(strings = {"ascii", "utf8"})
     void accepts72BytesWithoutChangingInput(String kind) throws Exception {
         String password = kind.equals("ascii") ? "a".repeat(72) : "é".repeat(36);
-        when(register.register(any())).thenReturn(User.create(UUID.randomUUID(), "user@example.org", "First", "Last", "hash"));
+        when(register.register(any())).thenReturn(User.create(UUID.randomUUID(), "adama.ndiaye@example.test", "Adama", "Ndiaye", "hash"));
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content(registration("user@example.org", "First", password)))
+                .content(registration("adama.ndiaye@example.test", "Adama", password)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING"));
         verify(register).register(argThat(c -> password.equals(c.password())));
     }
 
     @Test void rejectsOversizedSchemaFields() throws Exception {
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content(registration("user@example.org", "f".repeat(101), "password")))
+                .content(registration("adama.ndiaye@example.test", "f".repeat(101), "password")))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message", containsString("firstName")));
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content(registration("a".repeat(256)+"@example.org", "First", "password")))
+                .content(registration("a".repeat(256)+"@example.org", "Adama", "password")))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message", containsString("255")));
         verifyNoInteractions(register, send);
     }
 
     @Test void rejectsMissingPasswordAndShortPassword() throws Exception {
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"user@example.org\",\"firstName\":\"First\",\"lastName\":\"Last\"}"))
+                .content("{\"email\":\"adama.ndiaye@example.test\",\"firstName\":\"Adama\",\"lastName\":\"Ndiaye\"}"))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content(registration("user@example.org", "First", "short")))
+                .content(registration("adama.ndiaye@example.test", "Adama", "short")))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(register, send);
     }
@@ -115,10 +115,10 @@ class IdentityHttpTest {
     }
 
     @Test void duplicateEmailReturnsSafeConflict() throws Exception {
-        when(register.register(any())).thenThrow(new UserAlreadyExistsException("private@example.org"));
+        when(register.register(any())).thenThrow(new UserAlreadyExistsException("elodie.martin@example.test"));
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content(registration("user@example.org", "First", "password")))
-                .andExpect(status().isConflict()).andExpect(content().string(not(containsString("private@example.org"))));
+                .content(registration("adama.ndiaye@example.test", "Adama", "password")))
+                .andExpect(status().isConflict()).andExpect(content().string(not(containsString("elodie.martin@example.test"))));
         verifyNoInteractions(send);
     }
 
@@ -126,7 +126,7 @@ class IdentityHttpTest {
         when(register.register(any())).thenThrow(new IllegalStateException("SENSITIVE_SQL_PASSWORD_SENTINEL",
                 new RuntimeException("SENSITIVE_CAUSE_SENTINEL")));
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content(registration("user@example.org", "First", "password")))
+                .content(registration("adama.ndiaye@example.test", "Adama", "password")))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.message").value("An unexpected error occurred."));
         assertFalse(output.getAll().contains("SENSITIVE_SQL_PASSWORD_SENTINEL"));
@@ -137,14 +137,14 @@ class IdentityHttpTest {
     @Test void dependencyOutageReturns503() throws Exception {
         when(register.register(any())).thenThrow(new DataAccessResourceFailureException("internal-host:5432"));
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content(registration("user@example.org", "First", "password")))
+                .content(registration("adama.ndiaye@example.test", "Adama", "password")))
                 .andExpect(status().isServiceUnavailable()).andExpect(content().string(not(containsString("internal-host"))));
     }
 
     @Test void suspendedAccountConflictDoesNotDiscloseStatus() throws Exception {
         when(verify.verify(any())).thenThrow(new InvalidUserStateException());
         mvc.perform(post("/api/v1/identity/verify-email").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"user@example.org\",\"otp\":\"123456\"}"))
+                .content("{\"email\":\"adama.ndiaye@example.test\",\"otp\":\"123456\"}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.message").value("Account cannot be activated."));
     }
     @ParameterizedTest
@@ -156,7 +156,7 @@ class IdentityHttpTest {
             case "credentials" -> {
                 when(login.login(any())).thenThrow(new InvalidCredentialsException());
                 endpoint = "login";
-                body = "{\"email\":\"user@example.org\",\"password\":\"password\"}";
+                body = "{\"email\":\"adama.ndiaye@example.test\",\"password\":\"password\"}";
             }
             case "refresh" -> {
                 when(refresh.refresh(any())).thenThrow(new InvalidRefreshTokenException());
@@ -164,25 +164,25 @@ class IdentityHttpTest {
                 body = "{\"refreshToken\":\"test-token\"}";
             }
             case "cooldown" -> {
-                doThrow(new OtpCooldownException("private@example.org")).when(send).send(any());
+                doThrow(new OtpCooldownException("elodie.martin@example.test")).when(send).send(any());
                 endpoint = "resend-verification-code";
-                body = "{\"email\":\"user@example.org\"}";
+                body = "{\"email\":\"adama.ndiaye@example.test\"}";
             }
             default -> {
                 CloudForgeException error = switch (scenario) {
-                    case "unknown" -> new UserNotFoundException("private@example.org");
-                    case "active" -> new UserAlreadyActiveException("private@example.org");
+                    case "unknown" -> new UserNotFoundException("elodie.martin@example.test");
+                    case "active" -> new UserAlreadyActiveException("elodie.martin@example.test");
                     case "otp" -> new InvalidOtpException();
-                    default -> new VerificationBlockedException("private@example.org");
+                    default -> new VerificationBlockedException("elodie.martin@example.test");
                 };
                 when(verify.verify(any())).thenThrow(error);
                 endpoint = "verify-email";
-                body = "{\"email\":\"user@example.org\",\"otp\":\"123456\"}";
+                body = "{\"email\":\"adama.ndiaye@example.test\",\"otp\":\"123456\"}";
             }
         }
         mvc.perform(post("/api/v1/identity/" + endpoint).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().is(expected)).andExpect(jsonPath("$.status").value(expected))
-                .andExpect(content().string(not(containsString("private@example.org"))));
+                .andExpect(content().string(not(containsString("elodie.martin@example.test"))));
     }
     @ParameterizedTest
     @ValueSource(strings = {"ascii", "utf8", "emoji"})
@@ -195,7 +195,7 @@ class IdentityHttpTest {
         assertEquals(72, password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
         when(login.login(any())).thenReturn(new LoginUserUseCase.LoginResult("test-access", "test-refresh"));
         mvc.perform(post("/api/v1/identity/login").contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(Map.of("email", "user@example.org", "password", password))))
+                .content(json.writeValueAsString(Map.of("email", "adama.ndiaye@example.test", "password", password))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").value("test-access"));
         verify(login).login(argThat(command -> password.equals(command.password())));
     }
@@ -205,7 +205,7 @@ class IdentityHttpTest {
         root.setNextException(new java.sql.SQLException("PRIVATE_NEXT_SENTINEL", "private-invalid-state"));
         when(register.register(any())).thenThrow(new IllegalStateException("PRIVATE_OUTER_SENTINEL", root));
         mvc.perform(post("/api/v1/identity/register").contentType(MediaType.APPLICATION_JSON)
-                .content(registration("user@example.org", "First", "password")))
+                .content(registration("adama.ndiaye@example.test", "Adama", "password")))
                 .andExpect(status().isInternalServerError());
         assertTrue(output.getAll().contains("java.sql.SQLException[sqlState=23505]"));
         assertFalse(output.getAll().contains("PRIVATE_SQL_SENTINEL"));
