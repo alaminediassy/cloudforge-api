@@ -21,7 +21,7 @@ class JwtTokenProviderTest {
         String secret = "s".repeat(bytes);
         var properties = new JwtProperties(secret, Duration.ofMinutes(15), Duration.ofDays(7), "cloudforge-api");
         var provider = new JwtTokenProvider(properties);
-        User user = User.create(UUID.randomUUID(), "test@example.org", "First", "Last", "hash");
+        User user = User.create(UUID.randomUUID(), "adama.ndiaye@example.test", "Adama", "Ndiaye", "hash");
         String access = provider.generateAccessToken(user);
         String refresh = provider.generateRefreshToken(user);
         var parser = Jwts.parser().verifyWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8))).build();

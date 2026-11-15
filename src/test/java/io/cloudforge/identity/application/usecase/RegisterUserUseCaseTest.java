@@ -14,7 +14,7 @@ class RegisterUserUseCaseTest {
     private final UserRepository repository = mock(UserRepository.class);
     private final PasswordHasher hasher = mock(PasswordHasher.class);
     private final RegisterUserUseCase useCase = new RegisterUserUseCase(repository, hasher);
-    private final RegisterUserCommand command = new RegisterUserCommand("register@example.org", "First", "Last", "test-password");
+    private final RegisterUserCommand command = new RegisterUserCommand("adama.ndiaye@example.test", "Adama", "Ndiaye", "test-password");
     @Test void persistsPendingUserWithHashOnly() {
         when(hasher.hash(command.password())).thenReturn("encoded-hash");
         User user = useCase.register(command);
@@ -25,7 +25,7 @@ class RegisterUserUseCaseTest {
         verify(repository).save(user);
     }
     @Test void rejectsExistingEmailBeforeHashing() {
-        when(repository.findByEmail(command.email())).thenReturn(Optional.of(User.create(UUID.randomUUID(), command.email(), "First", "Last", "hash")));
+        when(repository.findByEmail(command.email())).thenReturn(Optional.of(User.create(UUID.randomUUID(), command.email(), "Adama", "Ndiaye", "hash")));
         assertThrows(UserAlreadyExistsException.class, () -> useCase.register(command));
         verifyNoInteractions(hasher);
         verify(repository, never()).save(any());

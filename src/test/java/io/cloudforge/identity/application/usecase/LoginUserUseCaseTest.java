@@ -57,7 +57,7 @@ class LoginUserUseCaseTest {
     void shouldLoginSuccessfully() {
 
         LoginUserCommand command = new LoginUserCommand(
-                "lamine@cloudforge.io",
+                "adama.ndiaye@example.test",
                 "Passer123"
         );
 
@@ -105,7 +105,7 @@ class LoginUserUseCaseTest {
     void shouldRejectUnknownEmail() {
 
         LoginUserCommand command = new LoginUserCommand(
-                "unknown@cloudforge.io",
+                "unknown@example.test",
                 "Passer123"
         );
 
@@ -125,7 +125,7 @@ class LoginUserUseCaseTest {
     void shouldRejectInvalidPassword() {
 
         LoginUserCommand command = new LoginUserCommand(
-                "lamine@cloudforge.io",
+                "adama.ndiaye@example.test",
                 "WrongPassword"
         );
 
@@ -157,7 +157,7 @@ class LoginUserUseCaseTest {
     void shouldRejectInactiveUser() {
 
         LoginUserCommand command = new LoginUserCommand(
-                "lamine@cloudforge.io",
+                "adama.ndiaye@example.test",
                 "Passer123"
         );
 

@@ -64,12 +64,12 @@ class OtpRecoveryIntegrationTest {
         assertEquals(1, factory.getDatabase());
     }
     String address() {
-        String address = "g4-" + UUID.randomUUID() + "@example.test";
+        String address = "adama.ndiaye+" + UUID.randomUUID() + "@example.test";
         fixtures.add(address);
         return address;
     }
     User pending(String address) {
-        return registration.register(new RegisterUserCommand(address, "Fixture", "Only", "test-password"));
+        return registration.register(new RegisterUserCommand(address, "Adama", "Ndiaye", "test-password"));
     }
     String key(String kind, String address) { return "cloudforge:otp:" + kind + ":" + address; }
     String hash(String address) { return redis.opsForValue().get(key("hash", address)); }
@@ -90,7 +90,7 @@ class OtpRecoveryIntegrationTest {
         assertFalse(Boolean.TRUE.equals(redis.hasKey(key)));
     }
     String body(String address) throws Exception {
-        return json.writeValueAsString(Map.of("email", address, "firstName", "Fixture", "lastName", "Only", "password", "test-password"));
+        return json.writeValueAsString(Map.of("email", address, "firstName", "Adama", "lastName", "Ndiaye", "password", "test-password"));
     }
     Set<String> refreshKeys(String address) {
         var id = users.findByEmail(address).map(User::getId).map(UUID::toString).orElse("");
