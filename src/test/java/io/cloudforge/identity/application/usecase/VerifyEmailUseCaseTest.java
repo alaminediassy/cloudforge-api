@@ -25,11 +25,11 @@ class VerifyEmailUseCaseTest {
     @Mock HashProvider hash;
     VerifyEmailUseCase useCase;
     User user;
-    final String address = "fixture@example.test";
+    final String address = "adama.ndiaye@example.test";
     final VerifyEmailCommand command = new VerifyEmailCommand(address, "123456");
     @BeforeEach void setup() {
         useCase = new VerifyEmailUseCase(users, store, tokens, refresh, hash);
-        user = User.create(UUID.randomUUID(), address, "First", "Last", "hash");
+        user = User.create(UUID.randomUUID(), address, "Adama", "Ndiaye", "hash");
         when(users.findByEmailForUpdate(address)).thenReturn(Optional.of(user));
     }
     private void outcome(OtpStore.VerificationResult result) {

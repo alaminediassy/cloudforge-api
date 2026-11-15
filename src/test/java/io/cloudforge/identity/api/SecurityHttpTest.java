@@ -62,7 +62,7 @@ class SecurityHttpTest {
     @MockitoBean VerifyEmailUseCase verify;
     @MockitoBean RefreshSessionUseCase refresh;
     @MockitoBean LogoutUseCase logout;
-    private final User active = User.restore(UUID.randomUUID(), "private@example.org", "First", "Last", "private-hash", UserStatus.ACTIVE);
+    private final User active = User.restore(UUID.randomUUID(), "elodie.martin@example.test", "Élodie", "Martin", "private-hash", UserStatus.ACTIVE);
 
     @RestController
     static class ProbeController {
@@ -177,7 +177,7 @@ class SecurityHttpTest {
     @ValueSource(strings = {"missing", "PENDING", "SUSPENDED"})
     void rejectsUnavailableOrInactiveUser(String state) throws Exception {
         Optional<User> user = state.equals("missing") ? Optional.empty() : Optional.of(User.restore(
-                active.getId(), active.getEmail(), "First", "Last", "hash", UserStatus.valueOf(state)));
+                active.getId(), active.getEmail(), "Élodie", "Martin", "hash", UserStatus.valueOf(state)));
         when(users.findById(active.getId())).thenReturn(user);
         mvc.perform(get("/api/v1/identity/private-probe").header("Authorization", "Bearer " + tokens.generateAccessToken(active)))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.message").value("Authentication is required or invalid."));

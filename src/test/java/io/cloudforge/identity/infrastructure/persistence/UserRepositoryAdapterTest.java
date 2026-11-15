@@ -43,23 +43,23 @@ class UserRepositoryAdapterTest {
         assertEquals(user.getFirstName(), restored.getFirstName());
     }
     @Test void translatesDatabaseEmailUniqueViolation() {
-        String email = UUID.randomUUID() + "@example.org";
-        repository.save(User.create(UUID.randomUUID(), email, "First", "Last", "hash"));
-        assertThrows(UserAlreadyExistsException.class, () -> repository.save(User.create(UUID.randomUUID(), email, "Other", "Last", "hash")));
+        String email = "adama.ndiaye+" + UUID.randomUUID() + "@example.test";
+        repository.save(User.create(UUID.randomUUID(), email, "Adama", "Ndiaye", "hash"));
+        assertThrows(UserAlreadyExistsException.class, () -> repository.save(User.create(UUID.randomUUID(), email, "Élodie", "Martin", "hash")));
     }
     @Test void doesNotMisclassifyOtherConstraintViolationsAsEmailConflicts() {
-        assertThrows(DataIntegrityViolationException.class, () -> repository.save(User.create(UUID.randomUUID(), UUID.randomUUID()+"@example.org", null, "Last", "hash")));
+        assertThrows(DataIntegrityViolationException.class, () -> repository.save(User.create(UUID.randomUUID(), "adama.ndiaye+" + UUID.randomUUID() + "@example.test", null, "Ndiaye", "hash")));
     }
     @Test void realEmailConflictLogsOnlySafeMetadata(CapturedOutput output) {
         // No test-specific logging override: this comes from application.yml.
         assertEquals(Level.OFF, ((Logger) LoggerFactory.getLogger(
                 "org.hibernate.engine.jdbc.spi.SqlExceptionHelper")).getEffectiveLevel());
-        String email = "private-email-" + UUID.randomUUID() + "@example.org";
+        String email = "adama.ndiaye+private-email-" + UUID.randomUUID() + "@example.test";
         String privateName = "PRIVATE_NAME_SENTINEL";
         String privateHash = "PRIVATE_HASH_SENTINEL";
-        repository.save(User.create(UUID.randomUUID(), email, privateName, "Last", privateHash));
+        repository.save(User.create(UUID.randomUUID(), email, privateName, "Ndiaye", privateHash));
         assertThrows(UserAlreadyExistsException.class, () -> repository.save(
-                User.create(UUID.randomUUID(), email, privateName, "Last", privateHash)));
+                User.create(UUID.randomUUID(), email, privateName, "Ndiaye", privateHash)));
         assertTrue(output.getAll().contains("sqlState=23505, constraint=users_email_key"));
         assertFalse(output.getAll().contains(email));
         assertFalse(output.getAll().contains(privateName));
@@ -68,10 +68,10 @@ class UserRepositoryAdapterTest {
     }
 
     @Test void realPostgresLengthErrorKeepsSqlStateWithoutLeakingValues(CapturedOutput output) {
-        String email = "private-length-" + UUID.randomUUID() + "@example.org";
+        String email = "adama.ndiaye+private-length-" + UUID.randomUUID() + "@example.test";
         String name = "x".repeat(101);
         DataIntegrityViolationException error = assertThrows(DataIntegrityViolationException.class,
-                () -> repository.save(User.create(UUID.randomUUID(), email, name, "Last", "PRIVATE_HASH_SENTINEL")));
+                () -> repository.save(User.create(UUID.randomUUID(), email, name, "Ndiaye", "PRIVATE_HASH_SENTINEL")));
         assertEquals("22001", sqlCause(error).getSQLState());
         var response = new GlobalExceptionHandler().handleUnexpectedException(error,
                 new ServletWebRequest(new MockHttpServletRequest("POST", "/api/v1/identity/register")));
@@ -90,10 +90,10 @@ class UserRepositoryAdapterTest {
         jdbc.execute("CREATE UNIQUE INDEX users_group2_first_name_key ON users(first_name) "
                 + "WHERE first_name = 'GROUP2_UNIQUE_NAME_SENTINEL'");
         String name = "GROUP2_UNIQUE_NAME_SENTINEL";
-        String email = UUID.randomUUID() + "@example.org";
-        repository.save(User.create(UUID.randomUUID(), UUID.randomUUID()+"@example.org", name, "Last", "hash"));
+        String email = "adama.ndiaye+" + UUID.randomUUID() + "@example.test";
+        repository.save(User.create(UUID.randomUUID(), "adama.ndiaye+" + UUID.randomUUID() + "@example.test", name, "Ndiaye", "hash"));
         DataIntegrityViolationException error = assertThrows(DataIntegrityViolationException.class,
-                () -> repository.save(User.create(UUID.randomUUID(), email, name, "Last", "hash")));
+                () -> repository.save(User.create(UUID.randomUUID(), email, name, "Ndiaye", "hash")));
         assertEquals("23505", sqlCause(error).getSQLState());
         Throwable cause = error;
         while (!(cause instanceof org.hibernate.exception.ConstraintViolationException)) {
@@ -107,6 +107,79 @@ class UserRepositoryAdapterTest {
         assertTrue(output.getAll().contains("sqlState=23505"));
         assertFalse(output.getAll().contains(email));
         assertFalse(output.getAll().contains(name));
+    }
+
+    @Test
+    void updatesOnlyNamesAndModificationTime() {
+        UUID id = UUID.randomUUID();
+        String email = "adama.ndiaye+" + id + "@example.test";
+
+        User user = User.restore(
+                id,
+                email,
+                "Adama",
+                "Ndiaye",
+                "original-password-hash",
+                UserStatus.ACTIVE
+        );
+        repository.save(user);
+
+        // A fixed old timestamp avoids timing-dependent assertions.
+        jdbc.update("""
+            UPDATE users
+            SET updated_at = TIMESTAMPTZ '2000-01-01 00:00:00+00'
+            WHERE id = ?
+            """, id);
+
+        var before = jdbc.queryForMap(
+                "SELECT * FROM users WHERE id = ?",
+                id
+        );
+
+        User locked = repository.findByIdForUpdate(id).orElseThrow();
+        locked.updateNames("Élodie", "Martin");
+
+        int updated = repository.updateNames(
+                locked.getId(),
+                locked.getFirstName(),
+                locked.getLastName()
+        );
+
+        var after = jdbc.queryForMap(
+                "SELECT * FROM users WHERE id = ?",
+                id
+        );
+
+        assertAll(
+                () -> assertEquals(1, updated),
+                () -> assertEquals("Élodie", after.get("first_name")),
+                () -> assertEquals("Martin", after.get("last_name")),
+                () -> assertEquals(before.get("id"), after.get("id")),
+                () -> assertEquals(before.get("email"), after.get("email")),
+                () -> assertEquals(
+                        before.get("password_hash"),
+                        after.get("password_hash")
+                ),
+                () -> assertEquals(before.get("status"), after.get("status")),
+                () -> assertEquals(before.get("created_at"), after.get("created_at")),
+                () -> assertNotEquals(before.get("updated_at"), after.get("updated_at"))
+        );
+
+        User reloaded = repository.findById(id).orElseThrow();
+        assertEquals("Élodie", reloaded.getFirstName());
+        assertEquals("Martin", reloaded.getLastName());
+    }
+
+    @Test
+    void returnsZeroWhenUpdatingMissingAccount() {
+        UUID missingId = UUID.randomUUID();
+
+        assertTrue(repository.findByIdForUpdate(missingId).isEmpty());
+
+        int updated = repository.updateNames(missingId, "Adama", "Ndiaye");
+
+        assertEquals(0, updated);
+        assertTrue(repository.findById(missingId).isEmpty());
     }
 
     private SQLException sqlCause(Throwable error) {

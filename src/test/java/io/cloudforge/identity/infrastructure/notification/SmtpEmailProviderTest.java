@@ -23,21 +23,21 @@ class SmtpEmailProviderTest {
         try (var capture = new LocalSmtpCapture(false)) {
             var sender = sender(capture.port());
             var provider = new SmtpEmailProvider(sender, "127.0.0.1");
-            provider.sendActivationEmail("fixture@example.test", "731942");
+            provider.sendActivationEmail("adama.ndiaye@example.test", "731942");
             var message = new MimeMessage(Session.getInstance(new Properties()), new ByteArrayInputStream(
                     capture.message().getBytes(StandardCharsets.UTF_8)));
-            assertEquals("fixture@example.test", message.getAllRecipients()[0].toString());
+            assertEquals("adama.ndiaye@example.test", message.getAllRecipients()[0].toString());
             assertEquals("no-reply@cloudforge.test", message.getFrom()[0].toString());
             assertTrue(message.getContent().toString().contains("731942"));
             assertFalse(output.getAll().contains("731942"));
-            assertFalse(output.getAll().contains("fixture@example.test"));
+            assertFalse(output.getAll().contains("adama.ndiaye@example.test"));
         }
     }
     @Test void smtpRejectionDoesNotLeakServerResponseOrMessage(CapturedOutput output) throws Exception {
         try (var capture = new LocalSmtpCapture(true)) {
             var provider = new SmtpEmailProvider(sender(capture.port()), "127.0.0.1");
             var failure = assertThrows(NotificationDeliveryException.class,
-                    () -> provider.sendActivationEmail("fixture@example.test", "731942"));
+                    () -> provider.sendActivationEmail("adama.ndiaye@example.test", "731942"));
             assertNull(failure.getCause());
             assertEquals("Notification delivery unavailable", failure.getMessage());
             assertFalse(output.getAll().contains("PRIVATE_SMTP_SENTINEL"));
@@ -50,7 +50,7 @@ class SmtpEmailProviderTest {
             socket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
             var provider = new SmtpEmailProvider(sender(socket.getLocalPort()), "127.0.0.1");
             assertThrows(NotificationDeliveryException.class,
-                    () -> provider.sendActivationEmail("fixture@example.test", "731942"));
+                    () -> provider.sendActivationEmail("adama.ndiaye@example.test", "731942"));
         }
     }
     @ParameterizedTest
@@ -60,7 +60,7 @@ class SmtpEmailProviderTest {
     }
     @Test void productionAdapterCannotSend() {
         assertThrows(NotificationDeliveryException.class,
-                () -> new UnavailableEmailProvider().sendActivationEmail("fixture@example.test", "731942"));
+                () -> new UnavailableEmailProvider().sendActivationEmail("adama.ndiaye@example.test", "731942"));
     }
     private JavaMailSenderImpl sender(int port) {
         var sender = new JavaMailSenderImpl();
