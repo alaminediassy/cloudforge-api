@@ -245,4 +245,36 @@ class UserHttpTest {
         verify(users, times(2)).findById(activeUser.getId());
         verifyNoMoreInteractions(users);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"firstName\":null}", "{\"firstName\":123}",
+            "{\"firstName\":\"Adama\",\"email\":\"elodie.martin@example.test\"}"})
+    void rejectsInvalidPatchWithoutWriting(String body) throws Exception {
+        when(users.findById(activeUser.getId())).thenReturn(Optional.of(activeUser));
+        mvc.perform(patch("/api/v1/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.generateAccessToken(activeUser))
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400));
+        verify(users).findById(activeUser.getId());
+        verifyNoMoreInteractions(users);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   ", "oversized"})
+    void rejectsInvalidNamesWithoutWriting(String name) throws Exception {
+        when(users.findById(activeUser.getId())).thenReturn(Optional.of(activeUser));
+        when(users.findByIdForUpdate(activeUser.getId())).thenReturn(Optional.of(activeUser));
+        String value = name.equals("oversized") ? "a".repeat(101) : name;
+        mvc.perform(patch("/api/v1/users/me")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokens.generateAccessToken(activeUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"firstName\":\"Élodie\",\"lastName\":\"" + value + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Names must not be blank or exceed 100 characters."));
+        verify(users).findById(activeUser.getId());
+        verify(users).findByIdForUpdate(activeUser.getId());
+        verifyNoMoreInteractions(users);
+        org.junit.jupiter.api.Assertions.assertEquals("Adama", activeUser.getFirstName());
+        org.junit.jupiter.api.Assertions.assertEquals("Ndiaye", activeUser.getLastName());
+    }
 }

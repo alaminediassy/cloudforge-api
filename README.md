@@ -112,10 +112,11 @@ percentage gate and no SonarCloud integration.
 
 - Local SMTP uses Mailpit; production email delivery is not configured.
 - PostgreSQL and Redis do not share a transaction. Recovery paths are documented.
-- Profile update concurrency, rollback and HTTP 400/no-write checks still need
-  dedicated integration coverage.
-- Remote Actions artifact transfer and GHCR publication require separate
-  verification; this README does not claim a successful first publication.
+- Dedicated tests cover concurrent partial profile updates, rollback after a SQL
+  write, and HTTP 400 responses without repository writes.
+- [Main pipeline run 43693528014](https://github.com/alaminediassy/cloudforge-api/actions/runs/43693528014)
+  passed on 2026-11-15, including artifact transfer and GHCR publication. This
+  validates that run, not every future publication or timeout recovery.
 
 ## Further reading
 
