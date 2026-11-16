@@ -74,8 +74,9 @@ That revision must equal or be an ancestor of the candidate in the full checkout
 Missing history, unknown provenance and divergent or older candidates are refused.
 A missing tag is accepted only for an explicit registry `MANIFEST_UNKNOWN` response
 followed by a successful repository read. Authentication failures or an unknown
-repository are not treated as an empty registry. The first publication of a missing
-GHCR package has not been validated. A `NAME_UNKNOWN` response stops publication;
+repository are not treated as an empty registry. The main pipeline [run 43693528014](https://github.com/alaminediassy/cloudforge-api/actions/runs/43693528014)
+succeeded on 2026-11-15, including artifact transfer and publication. This does
+not establish bootstrap behavior for an entirely missing GHCR package. A `NAME_UNKNOWN` response stops publication;
 it does not trigger automatic package creation. Initial setup needs a separately
 authorized remote check. Legacy multi-platform images are
 read through their single Linux/amd64 manifest. Unverifiable legacy metadata needs

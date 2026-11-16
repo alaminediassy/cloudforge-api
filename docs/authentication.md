@@ -146,7 +146,9 @@ active. It validates both final names before a targeted update of the names and
 method. Redis is not involved in the profile update itself.
 
 Domain, use-case, JSON and HTTP success/authentication tests cover this flow.
-Repository tests check the targeted columns. Dedicated concurrent PATCH and
-use-case rollback tests, plus HTTP 400/no-write tests, remain to be completed.
-Do not treat the existing tests as proof of those transaction guarantees.
+Repository tests check the targeted columns. Integration tests observe a real
+PostgreSQL lock wait between concurrent partial updates and verify that both
+changes survive. A failure injected after the SQL write verifies rollback through
+the Spring-managed use case. HTTP tests verify invalid requests cause no writes.
+These tests do not cover every possible external writer or database failure.
 
